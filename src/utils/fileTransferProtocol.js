@@ -141,35 +141,104 @@ export default class FileTransferProtocol {
   
   // Reconstruct the file from received chunks
   reconstructFile() {
-    if (!this.transferId) return null;
+    if (!this.transferId) {
+      console.error('No transfer ID set');
+      return null;
+    }
+    
+    if (this.totalReceivedChunks < this.totalChunks) {
+      console.warn(`Missing chunks: ${this.totalReceivedChunks}/${this.totalChunks} received`);
+    }
+    
+    // Log received chunks for debugging
+    console.log(`Reconstructing file from ${this.totalReceivedChunks} chunks`, {
+      transferId: this.transferId,
+      totalChunks: this.totalChunks,
+      filename: this.filename,
+      mimetype: this.mimetype
+    });
     
     // Sort chunks by index
     const sortedChunks = [];
+    const missingChunks = [];
+    
     for (let i = 0; i < this.totalChunks; i++) {
       const chunkKey = `${this.transferId}-${i}`;
       const chunk = this.receivedChunks[chunkKey];
       if (!chunk) {
         console.error(`Missing chunk at index ${i}`);
+        missingChunks.push(i);
+        // Continue and attempt reconstruction anyway in case some chunks were miscounted
+      } else {
+        sortedChunks.push(chunk);
+      }
+    }
+    
+    if (missingChunks.length > 0) {
+      console.warn(`Missing ${missingChunks.length} chunks: ${missingChunks.join(', ')}`);
+      // If we're missing too many chunks, don't attempt reconstruction
+      if (missingChunks.length > Math.min(3, this.totalChunks * 0.1)) {
         return null;
       }
-      sortedChunks.push(chunk);
     }
     
-    // Combine all chunks
-    const base64Data = sortedChunks.map(chunk => chunk.data).join('');
-    const binaryString = window.atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    try {
+      // Process each chunk separately and combine the binary data
+      const allBinaryData = [];
+      let totalSize = 0;
+      
+      // First pass - calculate total size and validate chunks
+      for (const chunk of sortedChunks) {
+        try {
+          // Decode each chunk's base64 data separately
+          const chunkBytes = this.base64ToUint8Array(chunk.data);
+          totalSize += chunkBytes.length;
+        } catch (error) {
+          console.error(`Error decoding chunk ${chunk.chunkIndex}:`, error);
+          return null;
+        }
+      }
+      
+      // Allocate a buffer for the entire file
+      const combinedBuffer = new Uint8Array(totalSize);
+      let offset = 0;
+      
+      // Second pass - fill the buffer
+      for (const chunk of sortedChunks) {
+        const chunkBytes = this.base64ToUint8Array(chunk.data);
+        combinedBuffer.set(chunkBytes, offset);
+        offset += chunkBytes.length;
+      }
+      
+      // Create blob and return file object
+      const blob = new Blob([combinedBuffer], { type: this.mimetype || 'application/octet-stream' });
+      return {
+        blob: blob,
+        filename: this.filename || 'downloaded_file',
+        mimetype: this.mimetype || 'application/octet-stream'
+      };
+    } catch (error) {
+      console.error('Error reconstructing file:', error);
+      return null;
     }
+  }
+  
+  // Helper method to safely convert base64 to Uint8Array
+  base64ToUint8Array(base64) {
+    // Add padding if needed
+    const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
     
-    // Create blob and return file object
-    const blob = new Blob([bytes], { type: this.mimetype });
-    return {
-      blob: blob,
-      filename: this.filename,
-      mimetype: this.mimetype
-    };
+    try {
+      const binaryString = window.atob(paddedBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
+    } catch (error) {
+      console.error('Base64 decoding error:', error);
+      throw new Error('Failed to decode base64 data: ' + error.message);
+    }
   }
   
   // Reset the receiver

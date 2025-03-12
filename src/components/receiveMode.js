@@ -19,6 +19,9 @@ export function setupReceiveMode(protocol) {
   let lastDetectedChunk = null;
   let lastDetectedTime = 0;
   
+  // Track if we've detected completion
+  let completionDetected = false;
+  
   // Toggle camera on/off
   toggleCameraBtn.addEventListener('click', async () => {
     const isActive = toggleCameraBtn.classList.contains('active');
@@ -47,6 +50,7 @@ export function setupReceiveMode(protocol) {
         
         // Clear previous chunks display
         chunksContainer.innerHTML = '';
+        completionDetected = false;
         
         // Start scanning for QR codes
         scanningInterval = setInterval(scanQRCode, 200);
@@ -110,17 +114,40 @@ export function setupReceiveMode(protocol) {
           progressFill.style.width = `${result.progress}%`;
           progressText.textContent = `${Math.round(result.progress)}% (${protocol.totalReceivedChunks}/${parsed.totalChunks})`;
           
-          // If all chunks are received, enable download
-          if (result.isComplete) {
-            const fileData = protocol.reconstructFile();
-            if (fileData) {
-              downloadBtn.disabled = false;
-              fileInfo.textContent = `Ready to download: ${fileData.filename} (${formatFileSize(fileData.blob.size)})`;
-            }
-          }
+          // Check if all chunks are received
+          checkCompletionStatus(parsed.totalChunks);
+        } else if (result && Math.round(result.progress) === 100 && !completionDetected) {
+          // Backup completion check - if progress is 100% but completion not detected
+          checkCompletionStatus(parsed.totalChunks);
         }
       } catch (error) {
         console.error('Error processing QR code:', error);
+      }
+    }
+  }
+  
+  // Check if all chunks are received and enable download if true
+  function checkCompletionStatus(totalChunks) {
+    // If already detected completion, skip
+    if (completionDetected) return;
+    
+    // Verify all chunks received by checking the count
+    if (protocol.totalReceivedChunks >= totalChunks) {
+      try {
+        console.log('All chunks received. Attempting file reconstruction...');
+        const fileData = protocol.reconstructFile();
+        if (fileData && fileData.blob) {
+          console.log('File successfully reconstructed:', fileData.filename);
+          downloadBtn.disabled = false;
+          fileInfo.textContent = `Ready to download: ${fileData.filename} (${formatFileSize(fileData.blob.size)})`;
+          completionDetected = true;
+        } else {
+          console.error('File reconstruction failed:', fileData);
+          fileInfo.textContent = 'Error: File reconstruction failed. Try scanning missing chunks.';
+        }
+      } catch (error) {
+        console.error('Error during file reconstruction:', error);
+        fileInfo.textContent = 'Error during file reconstruction: ' + error.message;
       }
     }
   }
@@ -178,5 +205,6 @@ export function setupReceiveMode(protocol) {
     downloadBtn.disabled = true;
     fileInfo.textContent = 'No file received yet';
     chunksContainer.innerHTML = '';
+    completionDetected = false;
   });
 } 
