@@ -63,7 +63,8 @@ h2 {
 }
 
 .file-input, .settings, .qr-display-container, 
-.camera-container, .progress-container, .download-container {
+.camera-container, .progress-container, .download-container,
+.chunks-visualizer {
   margin-bottom: 20px;
 }
 
@@ -90,20 +91,32 @@ input[type="file"] {
   margin-right: 10px;
 }
 
-.settings {
+.setting-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  margin-right: 20px;
+  margin-bottom: 10px;
 }
 
 .settings label {
   margin-right: 10px;
 }
 
-.settings input[type="number"] {
+.settings input[type="number"], .settings select {
   width: 80px;
   padding: 5px;
-  margin-right: 20px;
+  margin-right: 5px;
+}
+
+#error-correction {
+  width: 120px;
 }
 
 .qr-display-container {
@@ -129,6 +142,9 @@ input[type="file"] {
 .camera-container {
   position: relative;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 #camera-feed {
@@ -136,6 +152,12 @@ input[type="file"] {
   max-width: 500px;
   border: 1px solid #ddd;
   border-radius: 4px;
+}
+
+.camera-controls {
+  margin-top: 15px;
+  display: flex;
+  justify-content: center;
 }
 
 .progress-container {
@@ -165,4 +187,73 @@ input[type="file"] {
 #file-info {
   margin-top: 10px;
   font-size: 14px;
+}
+
+.chunk-controls {
+  display: flex;
+  justify-content: center;
+  margin: 15px 0;
+}
+
+.chunk-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#current-chunk-input {
+  width: 60px;
+  text-align: center;
+  padding: 5px;
+}
+
+.toggle-btn {
+  min-width: 150px;
+}
+
+.toggle-btn.active {
+  background-color: #f44336;
+}
+
+.chunks-visualizer {
+  margin-top: 20px;
+}
+
+.chunks-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.chunk-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: white;
+  background-color: #e0e0e0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chunk-indicator:hover {
+  transform: scale(1.1);
+}
+
+.chunk-current {
+  background-color: #4285f4;
+  border: 2px solid #2b579a;
+}
+
+.chunk-received {
+  background-color: #4285f4;
 } 

@@ -1,49 +1,61 @@
 import jsQR from 'jsqr';
 
 export function setupReceiveMode(protocol) {
+  // Get DOM elements
   const cameraFeed = document.getElementById('camera-feed');
   const cameraCanvas = document.getElementById('camera-canvas');
-  const startCameraBtn = document.getElementById('start-camera-btn');
-  const stopCameraBtn = document.getElementById('stop-camera-btn');
+  const toggleCameraBtn = document.getElementById('toggle-camera');
   const progressFill = document.getElementById('progress-fill');
   const progressText = document.getElementById('progress-text');
   const downloadBtn = document.getElementById('download-btn');
   const fileInfo = document.getElementById('file-info');
+  const chunksContainer = document.getElementById('receive-chunks-container');
   
   // Camera handling for receiving QR codes
   let cameraStream = null;
   let scanningInterval = null;
   
-  // Start the camera for QR code scanning
-  startCameraBtn.addEventListener('click', async () => {
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
-      
-      cameraFeed.srcObject = cameraStream;
-      startCameraBtn.disabled = true;
-      stopCameraBtn.disabled = false;
-      
-      // Start scanning for QR codes
-      scanningInterval = setInterval(scanQRCode, 200);
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Error accessing camera: ' + error.message);
-    }
-  });
+  // Track last detected chunk
+  let lastDetectedChunk = null;
+  let lastDetectedTime = 0;
   
-  // Stop the camera
-  stopCameraBtn.addEventListener('click', () => {
-    if (scanningInterval) clearInterval(scanningInterval);
+  // Toggle camera on/off
+  toggleCameraBtn.addEventListener('click', async () => {
+    const isActive = toggleCameraBtn.classList.contains('active');
     
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      cameraFeed.srcObject = null;
+    if (isActive) {
+      // Stop the camera
+      if (scanningInterval) clearInterval(scanningInterval);
+      
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraFeed.srcObject = null;
+      }
+      
+      toggleCameraBtn.textContent = 'Start Camera';
+      toggleCameraBtn.classList.remove('active');
+    } else {
+      // Start the camera
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        });
+        
+        cameraFeed.srcObject = cameraStream;
+        toggleCameraBtn.textContent = 'Stop Camera';
+        toggleCameraBtn.classList.add('active');
+        
+        // Clear previous chunks display
+        chunksContainer.innerHTML = '';
+        
+        // Start scanning for QR codes
+        scanningInterval = setInterval(scanQRCode, 200);
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        alert('Error accessing camera: ' + error.message);
+        toggleCameraBtn.classList.remove('active');
+      }
     }
-    
-    startCameraBtn.disabled = false;
-    stopCameraBtn.disabled = true;
   });
   
   // Scan for QR codes in the camera feed
@@ -69,23 +81,79 @@ export function setupReceiveMode(protocol) {
     });
     
     if (code) {
-      // Process the QR code data
-      const result = protocol.processReceivedChunk(code.data);
-      
-      if (result && result.isNewChunk) {
-        // Update progress
-        progressFill.style.width = `${result.progress}%`;
-        progressText.textContent = `${Math.round(result.progress)}%`;
+      try {
+        // Avoid processing the same code too frequently
+        const now = Date.now();
+        const parsed = JSON.parse(code.data);
+        const chunkKey = `${parsed.id}-${parsed.chunkIndex}`;
         
-        // If all chunks are received, enable download
-        if (result.isComplete) {
-          const fileData = protocol.reconstructFile();
-          if (fileData) {
-            downloadBtn.disabled = false;
-            fileInfo.textContent = `Ready to download: ${fileData.filename}`;
+        if (lastDetectedChunk === chunkKey && now - lastDetectedTime < 1000) {
+          return; // Skip if same chunk detected within 1 second
+        }
+        
+        lastDetectedChunk = chunkKey;
+        lastDetectedTime = now;
+        
+        // Process the QR code data
+        const result = protocol.processReceivedChunk(code.data);
+        
+        if (result && result.isNewChunk) {
+          // Initialize chunk indicators if first chunk
+          if (chunksContainer.children.length === 0 && parsed.totalChunks > 0) {
+            createChunkIndicators(parsed.totalChunks);
+          }
+          
+          // Update chunk indicator
+          updateChunkIndicator(parsed.chunkIndex);
+          
+          // Update progress
+          progressFill.style.width = `${result.progress}%`;
+          progressText.textContent = `${Math.round(result.progress)}% (${protocol.totalReceivedChunks}/${parsed.totalChunks})`;
+          
+          // If all chunks are received, enable download
+          if (result.isComplete) {
+            const fileData = protocol.reconstructFile();
+            if (fileData) {
+              downloadBtn.disabled = false;
+              fileInfo.textContent = `Ready to download: ${fileData.filename} (${formatFileSize(fileData.blob.size)})`;
+            }
           }
         }
+      } catch (error) {
+        console.error('Error processing QR code:', error);
       }
+    }
+  }
+  
+  // Create visualization for all chunks
+  function createChunkIndicators(totalChunks) {
+    chunksContainer.innerHTML = '';
+    for (let i = 0; i < totalChunks; i++) {
+      const indicator = document.createElement('div');
+      indicator.className = 'chunk-indicator';
+      indicator.textContent = i;
+      indicator.title = `Chunk ${i}`;
+      indicator.dataset.index = i;
+      chunksContainer.appendChild(indicator);
+    }
+  }
+  
+  // Update a chunk indicator when received
+  function updateChunkIndicator(index) {
+    const indicator = chunksContainer.querySelector(`.chunk-indicator[data-index="${index}"]`);
+    if (indicator) {
+      indicator.classList.add('chunk-received');
+    }
+  }
+  
+  // Format file size in KB or MB
+  function formatFileSize(bytes) {
+    if (bytes < 1024) {
+      return bytes + ' bytes';
+    } else if (bytes < 1024 * 1024) {
+      return (bytes / 1024).toFixed(1) + ' KB';
+    } else {
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
   }
   
@@ -109,5 +177,6 @@ export function setupReceiveMode(protocol) {
     progressText.textContent = '0%';
     downloadBtn.disabled = true;
     fileInfo.textContent = 'No file received yet';
+    chunksContainer.innerHTML = '';
   });
 } 
