@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code File Transfer</title>
+</head>
+<body>
+    <div class="container">
+        <h1>QR Code File Transfer</h1>
+        
+        <div class="tabs">
+            <button class="tab-btn active" id="send-tab">Send Mode</button>
+            <button class="tab-btn" id="receive-tab">Receive Mode</button>
+        </div>
+        
+        <div class="tab-content">
+            <!-- Send Mode -->
+            <div class="tab-pane active" id="send-pane">
+                <h2>Send File</h2>
+                <div class="file-input">
+                    <input type="file" id="file-input">
+                    <button id="generate-btn" disabled>Generate QR Codes</button>
+                </div>
+                
+                <div class="settings">
+                    <label for="chunk-size">Chunk Size (bytes):</label>
+                    <input type="number" id="chunk-size" value="200" min="100" max="500">
+                    
+                    <label for="display-delay">Display Delay (ms):</label>
+                    <input type="number" id="display-delay" value="1000" min="500" max="5000">
+                </div>
+                
+                <div class="qr-display-container">
+                    <div id="qr-display"></div>
+                    <div id="qr-info">
+                        <span id="chunk-count">Chunk 0 of 0</span>
+                        <button id="start-btn" disabled>Start Transmission</button>
+                        <button id="stop-btn" disabled>Stop</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Receive Mode -->
+            <div class="tab-pane" id="receive-pane">
+                <h2>Receive File</h2>
+                
+                <div class="camera-container">
+                    <video id="camera-feed" autoplay playsinline></video>
+                    <canvas id="camera-canvas" style="display: none;"></canvas>
+                    <button id="start-camera-btn">Start Camera</button>
+                    <button id="stop-camera-btn" disabled>Stop Camera</button>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <span id="progress-text">0%</span>
+                </div>
+                
+                <div class="download-container">
+                    <button id="download-btn" disabled>Download File</button>
+                    <p id="file-info">No file received yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html> 
